@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "omicsoracle"
+version = "0.1.0"
+description = "Agentic multi-omics pipeline: RNA-seq to drug targets via LLM reasoning"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/omicsoracle --cov-report=term-missing"
+
+[tool.setuptools.packages.find]
+where = ["src"]

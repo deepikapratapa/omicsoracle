@@ -1,0 +1,33 @@
+project:
+  name: OmicsOracle
+  version: "0.1.0"
+
+data:
+  tcga_cancers: ["BRCA", "LUAD", "GBM"]
+  raw_dir: "data/raw/tcga"
+  processed_dir: "data/processed"
+  results_dir: "data/results"
+
+de:
+  fdr_threshold: 0.05
+  log2fc_threshold: 1.0
+  min_counts: 10
+
+pathway:
+  databases: ["KEGG_2021_Human", "Reactome_2022", "GO_Biological_Process_2023"]
+  top_n: 20
+  pval_cutoff: 0.05
+
+drug_targets:
+  opentargets_url: "https://api.platform.openastronautics.io/api/v4/graphql"
+  dgidb_url: "https://dgidb.org/api/v2"
+  top_n: 10
+
+llm:
+  model: "mistral-7b-instruct"
+  temperature: 0.2
+  max_tokens: 2048
+
+api:
+  host: "0.0.0.0"
+  port: 8000
