@@ -1,0 +1,118 @@
+configfile: "configs/config.yaml"
+
+CANCER_TYPES = config["data"]["tcga_cancers"]
+RESULTS      = config["data"]["results_dir"]
+PROCESSED    = config["data"]["processed_dir"]
+
+# ── Master rule ──────────────────────────────────────────────
+rule all:
+    input:
+        # EDA
+        f"{PROCESSED}/tcga_pancancer_raw.h5ad",
+        f"{RESULTS}/qc_library_sizes.png",
+        f"{RESULTS}/umap_cancer_type.png",
+        # DE
+        expand("{results}/de_{ct}_vs_rest.csv", results=RESULTS, ct=CANCER_TYPES),
+        f"{RESULTS}/volcano_plots.png",
+        f"{RESULTS}/deg_heatmap.png",
+        # Pathway
+        expand("{results}/pathway_{ct}_KEGG_2021_Human.csv", results=RESULTS, ct=["LUAD","GBM"]),
+        f"{RESULTS}/pathway_bubble_kegg.png",
+        f"{RESULTS}/hallmark_heatmap.png",
+        # Drug targets
+        expand("{results}/drug_targets_{ct}.csv", results=RESULTS, ct=["LUAD","GBM"]),
+        f"{RESULTS}/drug_targets.png",
+        # Hypotheses
+        expand("{results}/hypotheses_{ct}.json", results=RESULTS, ct=["LUAD","GBM"]),
+        expand("{results}/hypotheses_{ct}.md",   results=RESULTS, ct=["LUAD","GBM"]),
+
+# ── Rule 1: Download TCGA data ────────────────────────────────
+rule download_tcga:
+    output:
+        brca_manifest = "data/raw/tcga/BRCA/manifest.json",
+        luad_manifest = "data/raw/tcga/LUAD/manifest.json",
+        gbm_manifest  = "data/raw/tcga/GBM/manifest.json",
+    params:
+        n_files = 50
+    shell:
+        """
+        python src/omicsoracle/utils/tcga_download.py
+        """
+
+# ── Rule 2: EDA + AnnData build ───────────────────────────────
+rule eda:
+    input:
+        brca = "data/raw/tcga/BRCA/manifest.json",
+        luad = "data/raw/tcga/LUAD/manifest.json",
+        gbm  = "data/raw/tcga/GBM/manifest.json",
+    output:
+        h5ad     = f"{PROCESSED}/tcga_pancancer_raw.h5ad",
+        lib_plot = f"{RESULTS}/qc_library_sizes.png",
+        umap     = f"{RESULTS}/umap_cancer_type.png",
+    shell:
+        """
+        python workflow/scripts/run_eda.py
+        """
+
+# ── Rule 3: Differential expression ──────────────────────────
+rule differential_expression:
+    input:
+        h5ad = f"{PROCESSED}/tcga_pancancer_raw.h5ad",
+    output:
+        de_files = expand(
+            "{results}/de_{ct}_vs_rest.csv",
+            results=RESULTS, ct=CANCER_TYPES
+        ),
+        symbol_map = f"{PROCESSED}/entrez_symbol_map.json",
+        volcano    = f"{RESULTS}/volcano_plots.png",
+        heatmap    = f"{RESULTS}/deg_heatmap.png",
+    shell:
+        """
+        python workflow/scripts/run_de.py
+        """
+
+# ── Rule 4: Pathway enrichment ────────────────────────────────
+rule pathway_enrichment:
+    input:
+        de_files   = expand("{results}/de_{ct}_vs_rest.csv", results=RESULTS, ct=CANCER_TYPES),
+        symbol_map = f"{PROCESSED}/entrez_symbol_map.json",
+    output:
+        kegg_luad = f"{RESULTS}/pathway_LUAD_KEGG_2021_Human.csv",
+        kegg_gbm  = f"{RESULTS}/pathway_GBM_KEGG_2021_Human.csv",
+        bubble    = f"{RESULTS}/pathway_bubble_kegg.png",
+        hallmark  = f"{RESULTS}/hallmark_heatmap.png",
+    shell:
+        """
+        python workflow/scripts/run_pathway.py
+        """
+
+# ── Rule 5: Drug target mining ────────────────────────────────
+rule drug_targets:
+    input:
+        de_files   = expand("{results}/de_{ct}_vs_rest.csv", results=RESULTS, ct=CANCER_TYPES),
+        symbol_map = f"{PROCESSED}/entrez_symbol_map.json",
+    output:
+        luad_drugs = f"{RESULTS}/drug_targets_LUAD.csv",
+        gbm_drugs  = f"{RESULTS}/drug_targets_GBM.csv",
+        plot       = f"{RESULTS}/drug_targets.png",
+    shell:
+        """
+        python workflow/scripts/run_drug_targets.py
+        """
+
+# ── Rule 6: LLM hypothesis agent ─────────────────────────────
+rule hypothesis_agent:
+    input:
+        de_files     = expand("{results}/de_{ct}_vs_rest.csv",           results=RESULTS, ct=CANCER_TYPES),
+        symbol_map   = f"{PROCESSED}/entrez_symbol_map.json",
+        drug_targets = expand("{results}/drug_targets_{ct}.csv",         results=RESULTS, ct=["LUAD","GBM"]),
+        pathways     = expand("{results}/pathway_{ct}_KEGG_2021_Human.csv", results=RESULTS, ct=["LUAD","GBM"]),
+    output:
+        json_luad = f"{RESULTS}/hypotheses_LUAD.json",
+        json_gbm  = f"{RESULTS}/hypotheses_GBM.json",
+        md_luad   = f"{RESULTS}/hypotheses_LUAD.md",
+        md_gbm    = f"{RESULTS}/hypotheses_GBM.md",
+    shell:
+        """
+        python workflow/scripts/run_hypothesis_agent.py
+        """
