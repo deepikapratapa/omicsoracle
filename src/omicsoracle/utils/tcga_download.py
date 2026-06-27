@@ -89,4 +89,4 @@ def download_tcga(cancer_types: list[str] = None,
         print(f"  Manifest saved → {manifest_path}")
 
 if __name__ == "__main__":
-    download_tcga(n_files_per_cancer=20)
+    download_tcga(n_files_per_cancer=50)
